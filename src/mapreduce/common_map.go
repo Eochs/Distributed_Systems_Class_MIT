@@ -2,6 +2,10 @@ package mapreduce
 
 import (
 	"hash/fnv"
+	"io/ioutil"
+	"log"
+	"math"
+	"os"
 )
 
 // doMap manages one map task: it reads one of the input files
@@ -24,6 +28,38 @@ func doMap(
 	// the intermediate file for reduce task r. Call ihash() (see below)
 	// on each key, mod nReduce, to pick r for a key/value pair.
 	//
+
+	// fmt.Println("jobName:", jobName)
+	// fmt.Println("mapTaskNumber:", mapTaskNumber)
+	// fmt.Println("inFile:", inFile)
+	// fmt.Println("nReduce:", nReduce)
+	// fmt.Println("mapF:", mapF)
+
+	content, err := ioutil.ReadFile(inFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// fmt.Printf("File contents: %s", content)
+	results := mapF(inFile, string(content))
+	// fmt.Printf("results: %s", results)
+
+	for _, result := range results {
+		r := int(math.Mod(float64(ihash(result.Key)), float64(nReduce)))
+		intermediateReduceFileName := reduceName(jobName, mapTaskNumber, r)
+
+		f, err := os.OpenFile(intermediateReduceFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			panic(err)
+		}
+
+		// fmt.Println(intermediateReduceFileName)
+		if _, err = f.WriteString(result.Key); err != nil {
+			panic(err)
+		}
+		f.Close()
+	}
+
 	// mapF() is the map function provided by the application. The first
 	// argument should be the input file name, though the map function
 	// typically ignores it. The second argument should be the entire
@@ -53,6 +89,7 @@ func doMap(
 	//
 	// Remember to close the file after you have written all the values!
 	//
+
 }
 
 func ihash(s string) int {
