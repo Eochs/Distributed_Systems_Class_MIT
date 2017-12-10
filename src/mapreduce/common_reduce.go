@@ -1,5 +1,12 @@
 package mapreduce
 
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+)
+
 // doReduce manages one reduce task: it reads the intermediate
 // key/value pairs (produced by the map phase) for this task, sorts the
 // intermediate key/value pairs by key, calls the user-defined reduce function
@@ -18,6 +25,53 @@ func doReduce(
 	// reduceName(jobName, m, reduceTaskNumber) yields the file
 	// name from map task m.
 	//
+	reduceData := make(map[string][]string)
+
+	for m := 0; m < nMap; m++ {
+		fmt.Println("m:", m, "jobName:", jobName, "reduceTaskNumber:", reduceTaskNumber)
+		fname := reduceName(jobName, m, reduceTaskNumber)
+		file, err := os.Open(fname)
+		if err != nil {
+			panic(err)
+		}
+		dec := json.NewDecoder(file)
+		// dec := json.NewDecoder(strings.NewReader(jsonStream))
+		for {
+			var m KeyValue
+			if err := dec.Decode(&m); err == io.EOF {
+				break
+			} else if err != nil {
+				panic(err)
+			}
+			// fmt.Printf("%s: %s\n", m.Key, m.Value)
+			if valSlice, ok := reduceData[m.Key]; ok {
+				reduceData[m.Key] = append(valSlice, m.Value)
+			} else {
+				reduceData[m.Key] = []string{m.Value}
+			}
+		}
+
+	}
+
+	//clearing contents of outfile
+	err := os.Remove(outFile)
+	if err != nil {
+		// no worries
+		// panic(err.Error())
+	}
+
+	f, err := os.OpenFile(outFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		panic(err)
+	}
+
+	enc := json.NewEncoder(f)
+	for key, valSlice := range reduceData {
+		reducedVal := reduceF(key, valSlice)
+		// fmt.Println("reduceF(key, valSlice):", reducedVal)
+		enc.Encode(KeyValue{key, reducedVal})
+	}
+
 	// Your doMap() encoded the key/value pairs in the intermediate
 	// files, so you will need to decode them. If you used JSON, you can
 	// read and decode by creating a decoder and repeatedly calling

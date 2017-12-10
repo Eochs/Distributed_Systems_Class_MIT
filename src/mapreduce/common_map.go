@@ -1,6 +1,7 @@
 package mapreduce
 
 import (
+	"encoding/json"
 	"hash/fnv"
 	"io/ioutil"
 	"log"
@@ -44,6 +45,15 @@ func doMap(
 	results := mapF(inFile, string(content))
 	// fmt.Printf("results: %s", results)
 
+	// Cleanup old files
+	for i := 0; i < nReduce; i++ {
+		err := os.Remove(reduceName(jobName, mapTaskNumber, i))
+		if err != nil {
+			// don't woorry
+			// panic(err.Error())
+		}
+	}
+
 	for _, result := range results {
 		r := int(math.Mod(float64(ihash(result.Key)), float64(nReduce)))
 		intermediateReduceFileName := reduceName(jobName, mapTaskNumber, r)
@@ -53,10 +63,16 @@ func doMap(
 			panic(err)
 		}
 
-		// fmt.Println(intermediateReduceFileName)
-		if _, err = f.WriteString(result.Key); err != nil {
-			panic(err)
+		enc := json.NewEncoder(f)
+		errEncode := enc.Encode(result)
+		if errEncode != nil {
+			panic(errEncode)
 		}
+
+		// fmt.Println(intermediateReduceFileName)
+		// if _, err = f.WriteString(result.Key + "\n"); err != nil {
+		// 	panic(err)
+		// }
 		f.Close()
 	}
 
