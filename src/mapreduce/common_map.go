@@ -49,7 +49,7 @@ func doMap(
 	for i := 0; i < nReduce; i++ {
 		err := os.Remove(reduceName(jobName, mapTaskNumber, i))
 		if err != nil {
-			// don't woorry
+			// don't worry
 			// panic(err.Error())
 		}
 	}
